@@ -22,6 +22,11 @@ private:
     //! Only the last move saved will be used.
     void (*_saveBestMove)(movement&);
 
+    Sint32 minMax(int depth, bool isMax, Uint16 me, Uint16 opponent);
+
+    Sint32 alphaBeta(int depth, Sint32 alpha, Sint32 beta, bool isMax, Uint16 me, Uint16 opponent);
+
+
 public:
         // Constructor from a current situation
     Strategy (bidiarray<Sint16>& blobs, 
@@ -62,6 +67,8 @@ public:
          * Find the best move.
          */
     void computeBestMove ();
+
+
     
     
 };

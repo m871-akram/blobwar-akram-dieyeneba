@@ -1,5 +1,8 @@
 #include"blobwar.h"
 #include<sstream>
+#ifdef __APPLE__
+#include <ApplicationServices/ApplicationServices.h>
+#endif
 
 static int eventfilter(const SDL_Event * event)
 {
@@ -21,6 +24,72 @@ static int eventfilter(const SDL_Event * event)
 
 	return 1;
 }
+
+#ifdef __APPLE__
+static SDL_Surface *core_graphics_image_load(const string &filename)
+{
+	CFStringRef path = CFStringCreateWithCString(NULL, filename.c_str(), kCFStringEncodingUTF8);
+	if (path == NULL) return NULL;
+
+	CFURLRef url = CFURLCreateWithFileSystemPath(NULL, path, kCFURLPOSIXPathStyle, false);
+	CFRelease(path);
+	if (url == NULL) return NULL;
+
+	CGImageSourceRef source = CGImageSourceCreateWithURL(url, NULL);
+	CFRelease(url);
+	if (source == NULL) return NULL;
+
+	CGImageRef cgimage = CGImageSourceCreateImageAtIndex(source, 0, NULL);
+	CFRelease(source);
+	if (cgimage == NULL) return NULL;
+
+	size_t width = CGImageGetWidth(cgimage);
+	size_t height = CGImageGetHeight(cgimage);
+	SDL_Surface *surface = SDL_CreateRGBSurface(SDL_SWSURFACE,
+			(int)width,
+			(int)height,
+			32,
+			0x00ff0000,
+			0x0000ff00,
+			0x000000ff,
+			0xff000000);
+	if (surface == NULL) {
+		CGImageRelease(cgimage);
+		return NULL;
+	}
+
+	bool locked = SDL_MUSTLOCK(surface);
+	if (locked && SDL_LockSurface(surface) != 0) {
+		SDL_FreeSurface(surface);
+		CGImageRelease(cgimage);
+		return NULL;
+	}
+
+	CGColorSpaceRef colorspace = CGColorSpaceCreateDeviceRGB();
+	CGContextRef context = CGBitmapContextCreate(surface->pixels,
+			width,
+			height,
+			8,
+			surface->pitch,
+			colorspace,
+			kCGBitmapByteOrder32Little | kCGImageAlphaPremultipliedFirst);
+	CGColorSpaceRelease(colorspace);
+	if (context == NULL) {
+		if (locked) SDL_UnlockSurface(surface);
+		SDL_FreeSurface(surface);
+		CGImageRelease(cgimage);
+		return NULL;
+	}
+
+	CGContextClearRect(context, CGRectMake(0, 0, width, height));
+	CGContextDrawImage(context, CGRectMake(0, 0, width, height), cgimage);
+	CGContextRelease(context);
+	if (locked) SDL_UnlockSurface(surface);
+	CGImageRelease(cgimage);
+
+	return surface;
+}
+#endif
 
 #ifdef WM_ICON
 static SDL_Surface *LoadIconSurface(char *file, Uint8 ** maskp)
@@ -104,7 +173,7 @@ blobwar::blobwar()
 	SDL_Surface *icon = LoadIconSurface((char*)icon_name.c_str(), &iconmask);
 	SDL_WM_SetIcon(icon, iconmask);
 #endif
-	screen = SDL_SetVideoMode(800, 600, 0, SDL_DOUBLEBUF);
+	screen = SDL_SetVideoMode(800, 600, 32, SDL_DOUBLEBUF);
 	if (screen == NULL) {
 		cout << "Unable to set video mode: " << SDL_GetError() << endl;
 		exit(2);
@@ -160,10 +229,10 @@ blobwar::blobwar()
 	pos.h = 80;
 	oneplayergamebutton = new button(pos, "Start 1P game");
 	oneplayergamebutton->setcallback(7);
-	pos.y += 150;
+	pos.y += 110;
 	twoplayersgamebutton = new button(pos, "Start 2P game");
 	twoplayersgamebutton->setcallback(2);
-	pos.y += 150;
+	pos.y += 110;
 	networkgamebutton = new button(pos, "Start network game");
 	networkgamebutton->setcallback(8);
 
@@ -171,12 +240,15 @@ blobwar::blobwar()
 	pos.y = 100;
 	twoplayerAIbutton = new button(pos, "Start 2P AI");
 	twoplayerAIbutton->setcallback(9);
-	pos.y += 150;
+	pos.y += 110;
+	twoplayerCOMPbutton = new button(pos, "Start 2P COMP");
+	twoplayerCOMPbutton->setcallback(11);
+	pos.y += 110;
 #ifdef fourplayers
 	fourplayerAIbutton = new button(pos, "Start 4P AI");
 	fourplayerAIbutton->setcallback(10);
+	pos.y += 110;
 #endif
-	pos.y += 150;
 	quitbutton = new button(pos, "Quit");
 	quitbutton->setcallback(1);
 
@@ -303,7 +375,13 @@ blobwar::~blobwar()
 SDL_Surface *blobwar::image_load(string filename)
 {
 	string realname = rename("graphx/"+filename);
-	SDL_Surface *image = IMG_Load(realname.c_str());
+	SDL_Surface *image = NULL;
+#ifdef __APPLE__
+	image = core_graphics_image_load(realname);
+#endif
+	if (image == NULL) {
+		image = IMG_Load(realname.c_str());
+	}
 #ifdef DEBUG
 	if (image == NULL) {
 		cerr << "Warning : unable to load : " << realname << " : " <<
@@ -322,7 +400,13 @@ SDL_Surface *blobwar::image_load(string filename)
 SDL_Surface *blobwar::alpha_image_load(string filename)
 {
 	string realname = rename("graphx/"+filename);
-	SDL_Surface *image = IMG_Load(realname.c_str());
+	SDL_Surface *image = NULL;
+#ifdef __APPLE__
+	image = core_graphics_image_load(realname);
+#endif
+	if (image == NULL) {
+		image = IMG_Load(realname.c_str());
+	}
 #ifdef DEBUG
 	if (image == NULL) {
 		cerr << "Warning : unable to load : " << realname << " : " <<
@@ -478,6 +562,7 @@ void blobwar::execute(Uint32 n) {
 			quitbutton->show();
 			networkgamebutton->show();
 			twoplayerAIbutton->show();
+			twoplayerCOMPbutton->show();
 #ifdef fourplayers
 			fourplayerAIbutton->show();
 #endif
@@ -490,6 +575,11 @@ void blobwar::execute(Uint32 n) {
         case 9:
        		// start 2P IA game (local)
 			gametype = GAME2PMATCH;
+			board_selection();
+			return;
+		case 11:
+			// start 2P IA COMP game (local)
+			gametype = GAME2PCOMP;
 			board_selection();
 			return;
        	case 10:
@@ -517,6 +607,7 @@ void blobwar::board_selection() {
 			quitbutton->hide();
 			networkgamebutton->hide();
 			twoplayerAIbutton->hide();
+			twoplayerCOMPbutton->hide();
 #ifdef fourplayers
 			fourplayerAIbutton->hide();
 #endif
@@ -539,6 +630,7 @@ void blobwar::board_selection(char* mapname) {
 			quitbutton->hide();
 			networkgamebutton->hide();
 			twoplayerAIbutton->hide();
+			twoplayerCOMPbutton->hide();
 #ifdef fourplayers
 			fourplayerAIbutton->hide();
 #endif
@@ -609,6 +701,7 @@ void blobwar::start_game(Uint32 local_player_id) {
 	startgamebutton->hide();
 	nextboardbutton->hide();
 	boardlabel->hide();
+	bwboard->show();
 	mainlabel->show();
 	scoreslabel->show();
 	if (local_player_id == 0) {

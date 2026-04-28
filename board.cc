@@ -214,6 +214,11 @@ void board::display() {
 			tiles[i]->display();
 		}
 	}
+	for(Uint8 i = 0 ; i < 8 ; i++) {
+		for(Uint8 j = 0 ; j < 8 ; j++) {
+			if (blobs[i][j] != NULL) blobs[i][j]->display();
+		}
+	}
 }
 
 void board::focus() {

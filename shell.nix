@@ -5,7 +5,13 @@ pkgs.mkShell {
     SDL_image
     SDL_ttf
     SDL_net
-    gcc
+    clang
+    gnumake
+    pkg-config
     clang-tools
   ];
+  shellHook = ''
+    export CC=clang
+    export CXX=clang++
+  '';
 }

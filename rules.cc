@@ -6,9 +6,12 @@
 #include <sys/time.h>
 #include <string>
 #include <sstream>
+#include <vector>
 #include <sys/types.h>
 #include <sys/wait.h>
 #include <sys/types.h>
+#include <signal.h>
+#include <unistd.h>
 
 #include "shmem.h"
 
@@ -62,7 +65,8 @@ rules::rules(Uint16 type, board *b, Uint32 local_player_id) {
 	if (type == GAME4PMATCH) 
 		number_of_players = 4;
 	else number_of_players = 2;
-	turn_number = 0;
+	turn_number = 0; // Joueur 1 (Bleu / strategy_op.cc) commence
+	// turn_number = number_of_players - 1 // Joueur 0 (Rouge / strategy.cc) commence
 	b->copy_board(holes); //copy data from the map in holes array
 
 	colors = new string[number_of_players];
@@ -73,8 +77,11 @@ rules::rules(Uint16 type, board *b, Uint32 local_player_id) {
 		colors[3] = "Yellow";
 	}
 
+	shmem_init(true);
+
 	//we start, the game is not finished yet
 	finished = false;
+
 
 	//initially no one has blobs...
 	for(Uint8 i = 0 ; i < 8 ; i++)
@@ -108,6 +115,11 @@ rules::rules(Uint16 type, board *b, Uint32 local_player_id) {
 		players.push_back(new player(1, 0));
 	}
 	if (type == GAME2PMATCH ){
+		players.push_back(new player(0, 1));
+		players.push_back(new player(1, 1));
+	}
+
+	if (type == GAME2PCOMP ){
 		players.push_back(new player(0, 1));
 		players.push_back(new player(1, 1));
 	}
@@ -288,6 +300,10 @@ void rules::do_move() {
 }
 
 
+#include <chrono>
+#include <algorithm>
+#include <numeric>
+
 void* timer(void*d)
 {
 #ifdef DEBUG
@@ -304,27 +320,38 @@ void* timer(void*d)
 
 void rules::compute_move() {
 
-	shmem_init(true);
 	
 	string cplayer("0");
 	cplayer[0] = '0'+(CURRENT_PLAYER);
+
+	const char* strategy_bin = "./launchStrategy";
+	if (gametype == GAME2PCOMP && CURRENT_PLAYER == 1) {
+		strategy_bin = "./launchStrategy_op";
+	}
 	
 #ifdef DEBUG
-	printf("Now fork: %s %s %s %s\n", "./launchStrategy", blobs.serialize().c_str(), holes.serialize().c_str(), cplayer.c_str());
+	printf("Now fork: %s %s %s %s\n", strategy_bin, blobs.serialize().c_str(), holes.serialize().c_str(), cplayer.c_str());
 #endif
 	int childPid = fork();
 	if(childPid == 0) // Child process
 	{
-		execl("./launchStrategy", "./launchStrategy", blobs.serialize().c_str(), holes.serialize().c_str(), cplayer.c_str(), (char *)NULL);
+		execl(strategy_bin, strategy_bin, blobs.serialize().c_str(), holes.serialize().c_str(), cplayer.c_str(), (char *)NULL);
 	}
 	
 	// start timer
 	pthread_t timerThread;
 	pthread_create (&timerThread, NULL, timer, (void*)&childPid);
 	
+	auto start_time = std::chrono::high_resolution_clock::now();
+
 	int status;   
 	while (wait(&status) != childPid)
 		/* empty */;
+	
+	auto end_time = std::chrono::high_resolution_clock::now();
+	std::chrono::duration<double> elapsed = end_time - start_time;
+	move_durations[CURRENT_PLAYER].push_back(elapsed.count());
+
 	pthread_cancel(timerThread);
 	
 	movement m = shmem_get();
@@ -350,9 +377,7 @@ void rules::next_turn() {
 	turn_number++;
 
 	//first, check if only one player is left
-	bool alive[number_of_players];
-	for(Uint16 i = 0 ; i < number_of_players ; i++)
-		alive[i] = false;
+	std::vector<bool> alive(number_of_players, false);
 	for(Uint8 x = 0 ; x < 8 ; x++)
 		for(Uint8 y = 0 ; y < 8 ; y++) 
 			if (blobs.get(x, y) != -1)
@@ -363,7 +388,7 @@ void rules::next_turn() {
 		if (alive[i]) num++;
 
 	bool not_finished = false;
-	bool can_move[number_of_players];
+	std::vector<bool> can_move(number_of_players, false);
 
 // #ifdef DEBUG
 // 	cout<<"turn finished ; remaining players : "<<num<<endl;
@@ -372,8 +397,6 @@ void rules::next_turn() {
 	if (num != 1) {
 	
 		//first, check if someone can move (iterate on all empty spaces)
-		for(Uint16 i = 0 ; i < number_of_players ; i++)
-			can_move[i] = false;
 		for(Sint16 x = 0 ; x < 8 ; x++) 
 			for(Sint16 y = 0 ; y < 8 ; y++) {
 				//if a hole we can't move in it, continue
@@ -430,6 +453,26 @@ void rules::set_scores() {
 }
 
 void rules::end() {
+	// Performance Report
+	cout << "\n========== PERFORMANCE REPORT ==========" << endl;
+	for (Uint16 i = 0; i < number_of_players; i++) {
+		if (!move_durations[i].empty()) {
+			double sum = std::accumulate(move_durations[i].begin(), move_durations[i].end(), 0.0);
+			double avg = sum / move_durations[i].size();
+			double min_t = *std::min_element(move_durations[i].begin(), move_durations[i].end());
+			double max_t = *std::max_element(move_durations[i].begin(), move_durations[i].end());
+			
+			string strategy_name = (gametype == GAME2PCOMP && i == 1) ? "strategy_op.cc" : "strategy.cc";
+
+			cout << "Player " << i << " (" << colors[i] << " - " << strategy_name << "):" << endl;
+			cout << "  - Average time: " << avg << " s" << endl;
+			cout << "  - Min time:     " << min_t << " s" << endl;
+			cout << "  - Max time:     " << max_t << " s" << endl;
+			cout << "  - Total moves:  " << move_durations[i].size() << endl;
+		}
+	}
+	cout << "========================================\n" << endl;
+
 	//someone won
 	//compute who
 	Uint32 scores[4];

@@ -17,6 +17,7 @@ class Timer;
 #define GAME4P 4
 #define GAME2PMATCH 5
 #define GAME4PMATCH 6
+#define GAME2PCOMP 7
 
 #define CURRENT_PLAYER (turn_number % number_of_players)
 
@@ -84,6 +85,9 @@ class rules {
 		Uint16 number_of_players;
 		//!current turn (number of turns elapsed since game beginning)
 		Uint32 turn_number;
+
+		//! Store move durations for performance analysis
+		std::vector<double> move_durations[4];
 
 		//!start a new game
 		rules(Uint16 type, board *b, Uint32 local_player_id);

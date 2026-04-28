@@ -36,8 +36,12 @@ class blobwar {
 		button *oneplayergamebutton;
 		//! start 2 player AI button
 		button *twoplayerAIbutton;
+		//! start 2 player AI competition button
+		button *twoplayerCOMPbutton;
+#ifdef fourplayers
 		//! start 4 player AI button
 		button *fourplayerAIbutton;
+#endif
 		//! start network game button
 		button *networkgamebutton;
 		//! quit the game button

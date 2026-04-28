@@ -4,17 +4,26 @@
 network::network() {
 	SDLNet_Init();
 	connected = false;
+
+	// Defaults used if network.cfg is missing or incomplete.
+	strncpy(servername, "localhost", sizeof(servername) - 1);
+	servername[sizeof(servername) - 1] = 0;
+	serverport = 1234;
+	strncpy(teamname, "blobwar", sizeof(teamname) - 1);
+	teamname[sizeof(teamname) - 1] = 0;
+	playertype = 0;
+
 	//parse config file
 	FILE *f = fopen("network.cfg", "r");
-        int e;
-        e=fscanf(f, "servername=%s\n", (char*) &servername);
-	char sport[10];
-	e=fscanf(f, "port=%s\n", sport);
-	serverport = atoi(sport);
-	e=fscanf(f, "teamname=%s\n", (char*) &teamname);
-	e=fscanf(f, "AI=%d\n", &playertype);
-        fclose(f);
-	if (!e);
+	if (f != NULL) {
+		char sport[10];
+		fscanf(f, "servername=%99s\n", servername);
+		fscanf(f, "port=%9s\n", sport);
+		serverport = atoi(sport);
+		fscanf(f, "teamname=%99s\n", teamname);
+		fscanf(f, "AI=%d\n", &playertype);
+		fclose(f);
+	}
 }
 
 network::~network() {

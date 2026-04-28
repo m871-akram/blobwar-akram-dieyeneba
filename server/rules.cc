@@ -1,6 +1,7 @@
 #include"rules.h"
 #include<stdlib.h>
 #include<iostream>
+#include<vector>
 #include<sys/timex.h>
 
 extern int game_started;
@@ -81,7 +82,7 @@ bool rules::set_move(Uint8 oldx, Uint8 oldy, Uint8 x, Uint8 y) {
 		do_move();
 		ntp_gettime(&currenttime);
 		float turntime = (currenttime.time.tv_sec - starttime);
-		float period = (float) currenttime.time.tv_usec / 1000000;
+		float period = static_cast<float>(currenttime.time.tv_nsec) / 1000000000.0f;
 		turntime += period;
 		cout<<"at "<<turntime<<" :";
 		cout<<"turn: "<<turn_number<<" player: "<<(turn_number % number_of_players)<< " moved from ("<<(Uint32)ox<<","<<(Uint32)oy<<") to ("<<(Uint32)nx<<","<<(Uint32)ny<<")"<<endl;
@@ -133,9 +134,7 @@ void rules::next_turn() {
 	turn_number++;
 
 	//first, check if only one player is left
-	bool alive[number_of_players];
-	for(Uint16 i = 0 ; i < number_of_players ; i++)
-		alive[i] = false;
+	std::vector<bool> alive(number_of_players, false);
 	for(Uint8 x = 0 ; x < 8 ; x++)
 		for(Uint8 y = 0 ; y < 8 ; y++) 
 			if (blobs[x][y] != -1)
@@ -146,13 +145,11 @@ void rules::next_turn() {
 		if (alive[i]) num++;
 
 	bool not_finished = false;
-	bool can_move[number_of_players];
+	std::vector<bool> can_move(number_of_players, false);
 
 	if (num != 1) {
 	
 		//first, check if someone can move (iterate on all empty spaces)
-		for(Uint16 i = 0 ; i < number_of_players ; i++)
-			can_move[i] = false;
 		for(Sint16 x = 0 ; x < 8 ; x++) 
 			for(Sint16 y = 0 ; y < 8 ; y++) {
 				//if a hole we can't move in it, continue

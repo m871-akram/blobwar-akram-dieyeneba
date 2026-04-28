@@ -18,6 +18,8 @@ movement* second = NULL;
 
 void shmem_init(bool init_move) {
 	int shmid;
+
+	if (first_is_new != NULL) return;
 	
 	//Create the segment.
 	if ((shmid = shmget(SHMEM_KEY1, sizeof(int), IPC_CREAT | 0666)) < 0) {

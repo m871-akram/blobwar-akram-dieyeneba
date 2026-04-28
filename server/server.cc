@@ -66,7 +66,7 @@ void start_game() {
 		char tmp[5];
 		//send to each player it's ID together with start signal
 		strcpy(send_buffer, "/start ");
-		sprintf(tmp, "%d", i);
+		snprintf(tmp, sizeof(tmp), "%d", i);
 		strcat(send_buffer, tmp);
 		strcat(send_buffer, "\n");
 		SDLNet_TCP_Send(player_sockets[i], (void*) send_buffer, strlen(send_buffer));
@@ -294,7 +294,7 @@ int main(int argc, char **argv) {
 		char tmp[5];
 		player_sockets[i] = NULL;
 		strcpy(player_names[i], "player ");
-		sprintf(tmp, "%d", i);
+		snprintf(tmp, sizeof(tmp), "%d", i);
 		strcat(player_names[i], tmp);
 	}
 	strcpy(mapname, "standard");
