@@ -1,6 +1,7 @@
 #ifndef __STRATEGY_OP_H
 #define __STRATEGY_OP_H
 
+
 #include "common.h"
 #include "bidiarray.h"
 #include "move.h"
@@ -22,7 +23,8 @@ private:
     //! Only the last move saved will be used.
     void (*_saveBestMove)(movement&);
 
-    Sint32 minMax(int depth, bool isMax, Uint16 me, Uint16 opponent);
+    Sint32 minMax(Strategy current_state, int depth, bool max);
+
 
 public:
     // Constructor from a current situation

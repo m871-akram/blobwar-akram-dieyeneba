@@ -1,7 +1,6 @@
 #ifndef __STRATEGY_H
 #define __STRATEGY_H
 
-#include "common.h"
 #include "bidiarray.h"
 #include "move.h"
 
@@ -22,32 +21,41 @@ private:
     //! Only the last move saved will be used.
     void (*_saveBestMove)(movement&);
 
-    Sint32 minMax(int depth, bool isMax, Uint16 me, Uint16 opponent);
-
-    Sint32 alphaBeta(int depth, Sint32 alpha, Sint32 beta, bool isMax, Uint16 me, Uint16 opponent);
+    Uint16 opponentOf(Uint16 player) const;
+    int mobilityBalanceFor(Uint16 me, Uint16 opponent) const;
+    Sint32 alphaBeta(Uint16 rootPlayer, Sint32 alpha, Sint32 beta, bool isMax, int depth) const;
+    Sint32 moveOrderingScore(const movement& mv) const;
+    void orderMoves(vector<movement>& moves) const;
 
 
 public:
         // Constructor from a current situation
-    Strategy (bidiarray<Sint16>& blobs, 
+    Strategy (bidiarray<Sint16>& blobs,
               const bidiarray<bool>& holes,
               const Uint16 current_player,
               void (*saveBestMove)(movement&))
-            : _blobs(blobs),_holes(holes), _current_player(current_player), _saveBestMove(saveBestMove)
+            : _blobs(blobs),
+              _holes(holes),
+              _current_player(current_player),
+              _saveBestMove(saveBestMove)
         {
         }
-    
-              
-    
+
+
+
         // Copy constructor
     Strategy (const Strategy& St)
-            : _blobs(St._blobs), _holes(St._holes),_current_player(St._current_player) 
-        {}
-    
+            : _blobs(St._blobs),
+              _holes(St._holes),
+              _current_player(St._current_player),
+              _saveBestMove(St._saveBestMove)
+        {
+        }
+
         // Destructor
     ~Strategy() {}
-    
-        /** 
+
+        /**
          * Apply a move to the current state of blobs
          * Assumes that the move is valid
          */
@@ -69,8 +77,8 @@ public:
     void computeBestMove ();
 
 
-    
-    
+
+
 };
 
 #endif

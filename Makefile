@@ -14,9 +14,13 @@ LOCAL_SDL_LIBS := -L$(LOCAL_SDL_PREFIX)/lib -lSDL_image -lSDL_ttf -lSDL_net
 LOCAL_SDL_RPATH := -Wl,-rpath,$(LOCAL_SDL_PREFIX)/lib
 
 CXXFLAGS ?= -Wall -Werror -O3 -g -Wno-strict-aliasing -DDEBUG
-CPPFLAGS += $(SDL_CORE_CFLAGS) $(LOCAL_SDL_CFLAGS)
+# OpenMP support for macOS (Homebrew)
+OMP_CFLAGS = -Xpreprocessor -fopenmp -I/opt/homebrew/opt/libomp/include
+OMP_LIBS = -L/opt/homebrew/opt/libomp/lib -lomp
+
+CPPFLAGS += $(SDL_CORE_CFLAGS) $(LOCAL_SDL_CFLAGS) $(OMP_CFLAGS)
 LDFLAGS += $(LOCAL_SDL_RPATH)
-LDLIBS += $(LOCAL_SDL_LIBS) $(SDL_CORE_LIBS) -lm -lpthread
+LDLIBS += $(LOCAL_SDL_LIBS) $(SDL_CORE_LIBS) -lm -lpthread $(OMP_LIBS)
 
 # $(sort) removes duplicate objects.
 OBJS_ALL = $(sort $(OBJS) $(OBJS_launchComputation) $(OBJS_launchComputation_op) strategy_op.o)

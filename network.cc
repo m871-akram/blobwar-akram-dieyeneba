@@ -3,12 +3,14 @@
 
 network::network() {
 	SDLNet_Init();
+	sock = NULL;
+	set = NULL;
 	connected = false;
 
 	// Defaults used if network.cfg is missing or incomplete.
-	strncpy(servername, "localhost", sizeof(servername) - 1);
+	strncpy(servername, "127.0.0.1", sizeof(servername) - 1);
 	servername[sizeof(servername) - 1] = 0;
-	serverport = 1234;
+	serverport = 2001;
 	strncpy(teamname, "blobwar", sizeof(teamname) - 1);
 	teamname[sizeof(teamname) - 1] = 0;
 	playertype = 0;
@@ -16,10 +18,14 @@ network::network() {
 	//parse config file
 	FILE *f = fopen("network.cfg", "r");
 	if (f != NULL) {
-		char sport[10];
-		fscanf(f, "servername=%99s\n", servername);
-		fscanf(f, "port=%9s\n", sport);
-		serverport = atoi(sport);
+		char sport[10] = "";
+		if (fscanf(f, "servername=%99s\n", servername) != 1) {
+			strncpy(servername, "127.0.0.1", sizeof(servername) - 1);
+			servername[sizeof(servername) - 1] = 0;
+		}
+		if (fscanf(f, "port=%9s\n", sport) == 1) {
+			serverport = atoi(sport);
+		}
 		fscanf(f, "teamname=%99s\n", teamname);
 		fscanf(f, "AI=%d\n", &playertype);
 		fclose(f);
@@ -34,7 +40,13 @@ network::~network() {
 
 char* network::connect() {
 	IPaddress address;
-	SDLNet_ResolveHost(&address, servername, serverport);
+#ifdef DEBUG
+	cerr<<"connecting to server "<<servername<<":"<<serverport<<endl;
+#endif
+	if (SDLNet_ResolveHost(&address, servername, serverport) == -1) {
+		cerr<<"unable to resolve server "<<servername<<":"<<serverport<<": "<<SDL_GetError()<<endl;
+		return NULL;
+	}
 	sock = SDLNet_TCP_Open(&address);
 	if (sock == NULL) {
 		cerr<<"unable to connect to server: "<<SDL_GetError()<<endl;

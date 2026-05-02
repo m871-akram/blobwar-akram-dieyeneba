@@ -66,7 +66,7 @@ rules::rules(Uint16 type, board *b, Uint32 local_player_id) {
 		number_of_players = 4;
 	else number_of_players = 2;
 	turn_number = 0; // Joueur 1 (Bleu / strategy_op.cc) commence
-	// turn_number = number_of_players - 1 // Joueur 0 (Rouge / strategy.cc) commence
+	// turn_number = number_of_players - 1 ; // Joueur 0 (Rouge / strategy.cc) commence
 	b->copy_board(holes); //copy data from the map in holes array
 
 	colors = new string[number_of_players];
