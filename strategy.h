@@ -23,6 +23,7 @@ private:
 
     Uint16 opponentOf(Uint16 player) const;
     int mobilityBalanceFor(Uint16 me, Uint16 opponent) const;
+    Sint32 minMax(Strategy current_state, int depth, bool max);
     Sint32 alphaBeta(Uint16 rootPlayer, Sint32 alpha, Sint32 beta, bool isMax, int depth) const;
     Sint32 moveOrderingScore(const movement& mv) const;
     void orderMoves(vector<movement>& moves) const;

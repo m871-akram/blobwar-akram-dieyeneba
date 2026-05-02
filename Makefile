@@ -1,6 +1,8 @@
 OBJS = strategy.o blobwar.o main.o font.o mouse.o image.o widget.o rollover.o button.o label.o board.o rules.o blob.o network.o bidiarray.o shmem.o
 OBJS_launchComputation = launchStrategy.o strategy.o bidiarray.o shmem.o
-OBJS_launchComputation_op = launchStrategy.o strategy_op.o bidiarray.o shmem.o
+OBJS_launchComputation_glouton = launchStrategy.o strategy_glouton.o bidiarray.o shmem.o
+OBJS_launchComputation_minimax = launchStrategy.o strategy_minimax.o bidiarray.o shmem.o
+OBJS_launchComputation_alphabeta0 = launchStrategy.o strategy_alphabeta0.o bidiarray.o shmem.o
 
 CXX = /usr/bin/clang++
 SDL_CONFIG ?= sdl-config
@@ -17,25 +19,32 @@ CXXFLAGS ?= -Wall -Werror -O3 -g -Wno-strict-aliasing -DDEBUG
 # OpenMP support for macOS (Homebrew)
 OMP_CFLAGS = -Xpreprocessor -fopenmp -I/opt/homebrew/opt/libomp/include
 OMP_LIBS = -L/opt/homebrew/opt/libomp/lib -lomp
+LAUNCH_LDLIBS = -lm -lpthread $(OMP_LIBS)
 
 CPPFLAGS += $(SDL_CORE_CFLAGS) $(LOCAL_SDL_CFLAGS) $(OMP_CFLAGS)
 LDFLAGS += $(LOCAL_SDL_RPATH)
 LDLIBS += $(LOCAL_SDL_LIBS) $(SDL_CORE_LIBS) -lm -lpthread $(OMP_LIBS)
 
 # $(sort) removes duplicate objects.
-OBJS_ALL = $(sort $(OBJS) $(OBJS_launchComputation) $(OBJS_launchComputation_op) strategy_op.o)
+OBJS_ALL = $(sort $(OBJS) $(OBJS_launchComputation) $(OBJS_launchComputation_glouton) $(OBJS_launchComputation_minimax) $(OBJS_launchComputation_alphabeta0))
 
-blobwar: $(OBJS) launchStrategy launchStrategy_op
+blobwar: $(OBJS) launchStrategy launchStrategy_glouton launchStrategy_minimax launchStrategy_alphabeta0
 	$(CXX) $(OBJS) $(CXXFLAGS) $(CPPFLAGS) $(LDFLAGS) -o $@ $(LDLIBS)
 
 $(OBJS_ALL): %.o: %.cc common.h
 	$(CXX) -c $< $(CXXFLAGS) $(CPPFLAGS) -o $@
 
 launchStrategy: $(OBJS_launchComputation)
-	$(CXX) $(OBJS_launchComputation) $(CXXFLAGS) $(CPPFLAGS) $(LDFLAGS) -o $@ $(LDLIBS)
+	$(CXX) $(OBJS_launchComputation) $(CXXFLAGS) $(CPPFLAGS) -o $@ $(LAUNCH_LDLIBS)
 
-launchStrategy_op: $(OBJS_launchComputation_op)
-	$(CXX) $(OBJS_launchComputation_op) $(CXXFLAGS) $(CPPFLAGS) $(LDFLAGS) -o $@ $(LDLIBS)
+launchStrategy_glouton: $(OBJS_launchComputation_glouton)
+	$(CXX) $(OBJS_launchComputation_glouton) $(CXXFLAGS) $(CPPFLAGS) -o $@ $(LAUNCH_LDLIBS)
+
+launchStrategy_minimax: $(OBJS_launchComputation_minimax)
+	$(CXX) $(OBJS_launchComputation_minimax) $(CXXFLAGS) $(CPPFLAGS) -o $@ $(LAUNCH_LDLIBS)
+
+launchStrategy_alphabeta0: $(OBJS_launchComputation_alphabeta0)
+	$(CXX) $(OBJS_launchComputation_alphabeta0) $(CXXFLAGS) $(CPPFLAGS) -o $@ $(LAUNCH_LDLIBS)
 
 clean:
-	rm -f *.o core blobwar launchStrategy launchStrategy_op *~
+	rm -f *.o core blobwar launchStrategy launchStrategy_op launchStrategy_glouton launchStrategy_minimax launchStrategy_alphabeta0 *~

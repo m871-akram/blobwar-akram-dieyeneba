@@ -65,7 +65,7 @@ rules::rules(Uint16 type, board *b, Uint32 local_player_id) {
 	if (type == GAME4PMATCH) 
 		number_of_players = 4;
 	else number_of_players = 2;
-	turn_number = 0; // Joueur 1 (Bleu / strategy_op.cc) commence
+	turn_number = 0; // Joueur 1 (Bleu / strategy_minimax.cc) commence
 	// turn_number = number_of_players - 1 ; // Joueur 0 (Rouge / strategy.cc) commence
 	b->copy_board(holes); //copy data from the map in holes array
 
@@ -326,7 +326,7 @@ void rules::compute_move() {
 
 	const char* strategy_bin = "./launchStrategy";
 	if (gametype == GAME2PCOMP && CURRENT_PLAYER == 1) {
-		strategy_bin = "./launchStrategy_op";
+		strategy_bin = "./launchStrategy_minimax";
 	}
 	
 #ifdef DEBUG
@@ -462,7 +462,7 @@ void rules::end() {
 			double min_t = *std::min_element(move_durations[i].begin(), move_durations[i].end());
 			double max_t = *std::max_element(move_durations[i].begin(), move_durations[i].end());
 			
-			string strategy_name = (gametype == GAME2PCOMP && i == 1) ? "strategy_op.cc" : "strategy.cc";
+			string strategy_name = (gametype == GAME2PCOMP && i == 1) ? "strategy_minimax.cc" : "strategy.cc";
 
 			cout << "Player " << i << " (" << colors[i] << " - " << strategy_name << "):" << endl;
 			cout << "  - Average time: " << avg << " s" << endl;

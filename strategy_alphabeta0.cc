@@ -2,10 +2,10 @@
 #include "strategy.h"
 #include <algorithm>
 #include <atomic>
-#include <cmath>
+#include <cstdlib>
 
 static const Sint32 STRATEGY_INF = 999999;
-static const int INITIAL_SEARCH_DEPTH = 3;
+static const int ALPHABETA0_DEPTH = 4;
 static std::atomic<unsigned long long> TRACE_NODES(0);
 static std::atomic<unsigned long long> TRACE_CUTOFFS(0);
 
@@ -20,11 +20,8 @@ static const int WEIGHT[8][8] = {
     {2, 3, 4, 4, 4, 4, 3, 2}
 };
 
-static void updateAtomicMax(std::atomic<Sint32>& target, Sint32 value) {
-    Sint32 current = target.load(std::memory_order_relaxed);
-    // Petit max atomique pour partager le meilleur alpha trouve.
-    while (value > current && !target.compare_exchange_weak(current, value, std::memory_order_relaxed)) {
-    }
+static bool insideBoard(int x, int y) {
+    return x >= 0 && x < 8 && y >= 0 && y < 8;
 }
 
 static void resetTrace() {
@@ -33,7 +30,7 @@ static void resetTrace() {
 }
 
 static void printTrace(int depth) {
-    cout << "BW_TRACE algo=alphabeta_final depth=" << depth
+    cout << "BW_TRACE algo=alphabeta0 depth=" << depth
          << " nodes=" << TRACE_NODES.load(std::memory_order_relaxed)
          << " cutoffs=" << TRACE_CUTOFFS.load(std::memory_order_relaxed)
          << endl;
@@ -44,25 +41,26 @@ Uint16 Strategy::opponentOf(Uint16 player) const {
 }
 
 void Strategy::applyMove (const movement& mv) {
-    int dist = std::max(abs(mv.nx - mv.ox), abs(mv.ny - mv.oy));
+    int dist = std::max(std::abs(mv.nx - mv.ox), std::abs(mv.ny - mv.oy));
 
-    // Distance 2 = saut, donc on enleve la source.
-    if ( dist == 2)
-    {
+    // Saut: le pion part de l'ancienne case.
+    if (dist == 2) {
         _blobs.set(mv.ox, mv.oy, -1);
     }
 
-    // La destination appartient au joueur courant.
+    // La destination prend la couleur du joueur courant.
     _blobs.set(mv.nx, mv.ny, _current_player);
 
-    // Conversion des voisins adverses autour de l'arrivee.
-    for ( int i = std::max(0, mv.nx - 1) ; i <= std::min(7, mv.nx + 1) ; i++)
-    {
-        for ( int j = std::max(0, mv.ny - 1) ; j <= std::min(7, mv.ny + 1) ; j++)
-        {
-            if (_blobs.get(i, j) != -1 && _blobs.get(i, j) != _current_player)
-            {
-                _blobs.set(i, j, _current_player);
+    // Conversion des voisins directs.
+    for (int ox = -1 ; ox <= 1 ; ox++) {
+        for (int oy = -1 ; oy <= 1 ; oy++) {
+            int x = mv.nx + ox;
+            int y = mv.ny + oy;
+            if (!insideBoard(x, y)) {
+                continue;
+            }
+            if (_blobs.get(x, y) != -1 && _blobs.get(x, y) != (int)_current_player) {
+                _blobs.set(x, y, _current_player);
             }
         }
     }
@@ -72,7 +70,7 @@ int Strategy::mobilityBalanceFor(Uint16 me, Uint16 opponent) const {
     int myMoves = 0;
     int opponentMoves = 0;
 
-    // La mobilite sert surtout a ne pas se bloquer.
+    // Difference entre mes coups possibles et ceux de l'adversaire.
     for (int x = 0 ; x < 8 ; x++) {
         for (int y = 0 ; y < 8 ; y++) {
             Sint16 owner = _blobs.get(x, y);
@@ -109,7 +107,7 @@ Sint32 Strategy::estimateCurrentScore () const {
     int playable = 0;
     int positionBalance = 0;
 
-    // Une seule boucle pour compter materiel, vides et position.
+    // On calcule materiel, cases vides et position en une passe.
     for (int x = 0 ; x < 8 ; x++) {
         for (int y = 0 ; y < 8 ; y++) {
             if (_holes.get(x, y)) {
@@ -132,7 +130,7 @@ Sint32 Strategy::estimateCurrentScore () const {
     }
 
     int mobility = mobilityBalanceFor(me, opponent);
-    // Les poids changent selon la phase de la partie.
+    // En fin de partie, le nombre de pions compte plus.
     if (empty * 5 < playable) {
         return 220 * material + mobility;
     }
@@ -145,17 +143,20 @@ Sint32 Strategy::estimateCurrentScore () const {
 }
 
 vector<movement>& Strategy::computeValidMoves (vector<movement>& valid_moves) const {
-
     valid_moves.clear();
 
-    // On parcourt mes pions, puis les cases a distance 1 ou 2.
+    // Meme generation que les autres strategies.
     for (int ox = 0 ; ox < 8 ; ox++) {
         for (int oy = 0 ; oy < 8 ; oy++) {
-            if (_blobs.get(ox, oy) == (int) _current_player) {
+            if (_blobs.get(ox, oy) == (int)_current_player) {
                 for (int nx = std::max(0, ox - 2) ; nx <= std::min(7, ox + 2) ; nx++) {
                     for (int ny = std::max(0, oy - 2) ; ny <= std::min(7, oy + 2) ; ny++) {
-                        if (nx == ox && ny == oy) continue; // On ne reste pas sur la meme case.
-                        if (_holes.get(nx, ny)) continue;
+                        if (nx == ox && ny == oy) {
+                            continue;
+                        }
+                        if (_holes.get(nx, ny)) {
+                            continue;
+                        }
                         if (_blobs.get(nx, ny) == -1) {
                             valid_moves.push_back(movement(ox, oy, nx, ny));
                         }
@@ -174,10 +175,10 @@ Sint32 Strategy::moveOrderingScore(const movement& mv) const {
     bool copyMove = std::max(dx, dy) == 1;
     int captured = 0;
 
-    // On met devant les coups qui gagnent vite du materiel.
+    // Plus un coup capture, plus on veut le tester tot.
     for (int x = mv.nx - 1 ; x <= mv.nx + 1 ; x++) {
         for (int y = mv.ny - 1 ; y <= mv.ny + 1 ; y++) {
-            if (x < 0 || x > 7 || y < 0 || y > 7 || _holes.get(x, y)) {
+            if (!insideBoard(x, y) || _holes.get(x, y)) {
                 continue;
             }
             if (_blobs.get(x, y) != -1 && _blobs.get(x, y) != (int)_current_player) {
@@ -211,81 +212,35 @@ void Strategy::computeBestMove () {
 
     orderMoves(moves);
     movement bestMove = moves[0];
-    // Important pour le timeout: on a toujours un coup valide en memoire.
-    _saveBestMove(bestMove);
-    printTrace(0);
+    Sint32 bestScore = -STRATEGY_INF;
+    int moveCount = (int)moves.size();
 
-    for (int depth = INITIAL_SEARCH_DEPTH ; ; depth++) {
-        // On remet le dernier meilleur coup en premier.
-        for (size_t i = 0 ; i < moves.size() ; i++) {
-            if (i != 0 &&
-                    moves[i].ox == bestMove.ox &&
-                    moves[i].oy == bestMove.oy &&
-                    moves[i].nx == bestMove.nx &&
-                    moves[i].ny == bestMove.ny) {
-                std::swap(moves[0], moves[i]);
-                break;
-            }
-        }
+    // Version intermediaire: on parallelise juste les coups racine.
+#pragma omp parallel for schedule(dynamic) if(moveCount > 1)
+    for (int i = 0 ; i < moveCount ; i++) {
+        Strategy child(*this);
+        child.applyMove(moves[i]);
+        child._current_player = opponentOf(_current_player);
 
-        Sint32 bestScore = -STRATEGY_INF;
-        Sint32 alpha = -STRATEGY_INF;
-        movement depthBestMove = bestMove;
-        int moveCount = (int)moves.size();
-        int sequentialCount = std::min(moveCount, std::max(1, (int)std::sqrt((double)moveCount)));
+        Sint32 value = child.alphaBeta(_current_player, -STRATEGY_INF, STRATEGY_INF, false, ALPHABETA0_DEPTH - 1);
 
-        // Petit prefixe sequentiel pour obtenir un alpha correct.
-        for (int i = 0 ; i < sequentialCount ; i++) {
-            Strategy child(*this);
-            child.applyMove(moves[i]);
-            child._current_player = opponentOf(_current_player);
-
-            Sint32 value = child.alphaBeta(_current_player, alpha, STRATEGY_INF, false, depth - 1);
+#pragma omp critical(strategy_alphabeta0_best)
+        {
             if (value > bestScore) {
                 bestScore = value;
-                depthBestMove = moves[i];
-            }
-            if (value > alpha) {
-                alpha = value;
+                bestMove = moves[i];
             }
         }
-
-        std::atomic<Sint32> sharedAlpha(alpha);
-
-        // Le reste des coups racine part en parallele.
-#pragma omp parallel for schedule(dynamic) if(moveCount > sequentialCount)
-        for (int i = sequentialCount ; i < moveCount ; i++) {
-            Sint32 localAlpha = sharedAlpha.load(std::memory_order_relaxed);
-
-            Strategy child(*this);
-            child.applyMove(moves[i]);
-            child._current_player = opponentOf(_current_player);
-
-            Sint32 value = child.alphaBeta(_current_player, localAlpha, STRATEGY_INF, false, depth - 1);
-
-            if (value > localAlpha) {
-                updateAtomicMax(sharedAlpha, value);
-            }
-
-#pragma omp critical(strategy_root_best)
-            {
-                if (value > bestScore) {
-                    bestScore = value;
-                    depthBestMove = moves[i];
-                }
-            }
-        }
-
-        bestMove = depthBestMove;
-        _saveBestMove(bestMove);
-        printTrace(depth);
     }
+
+    _saveBestMove(bestMove);
+    printTrace(ALPHABETA0_DEPTH);
 }
 
 Sint32 Strategy::alphaBeta(Uint16 rootPlayer, Sint32 alpha, Sint32 beta, bool isMax, int depth) const {
     TRACE_NODES.fetch_add(1, std::memory_order_relaxed);
 
-    // A profondeur 0 on evalue pour le joueur du coup initial.
+    // Feuille atteinte: on evalue du point de vue du joueur racine.
     if (depth == 0) {
         Strategy evaluated(*this);
         evaluated._current_player = rootPlayer;
@@ -296,7 +251,7 @@ Sint32 Strategy::alphaBeta(Uint16 rootPlayer, Sint32 alpha, Sint32 beta, bool is
     computeValidMoves(moves);
 
     if (moves.empty()) {
-        // Si aucun coup possible, on passe le tour.
+        // Pas de coup: on passe au joueur suivant.
         Strategy opponentState(*this);
         opponentState._current_player = opponentOf(_current_player);
         vector<movement> opponentMoves;
@@ -326,7 +281,7 @@ Sint32 Strategy::alphaBeta(Uint16 rootPlayer, Sint32 alpha, Sint32 beta, bool is
                 alpha = value;
             }
             if (alpha >= beta) {
-                // Coupure beta: pas besoin de tester les autres coups.
+                // Coupure: le reste ne peut plus changer la decision.
                 TRACE_CUTOFFS.fetch_add(1, std::memory_order_relaxed);
                 return alpha;
             }
@@ -344,7 +299,7 @@ Sint32 Strategy::alphaBeta(Uint16 rootPlayer, Sint32 alpha, Sint32 beta, bool is
             beta = value;
         }
         if (beta <= alpha) {
-            // Coupure cote joueur min.
+            // Meme idee cote min.
             TRACE_CUTOFFS.fetch_add(1, std::memory_order_relaxed);
             return beta;
         }

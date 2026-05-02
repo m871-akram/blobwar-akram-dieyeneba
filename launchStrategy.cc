@@ -5,6 +5,10 @@
 #include "strategy.h"
 #include "shmem.h"
 
+#ifdef main
+#undef main
+#endif
+
 //! Display a move on console
 void saveBestMoveToConsole(movement& m)
 {
@@ -49,15 +53,17 @@ int main(int argc, char **argv) {
 	//std::cout << "player: "<<cplayer<<std::endl;
 	void (*func)(movement&) = saveBestMoveToShmem;
 	
-	shmem_init();
-	func = saveBestMoveToShmem;
+	if (getenv("BLOBWAR_BENCHMARK") != NULL) {
+		func = saveBestMoveToConsole;
+	} else {
+		shmem_init();
+		func = saveBestMoveToShmem;
+	}
 	
 	Strategy strategy(blobs, holes, cplayer, func);
 	strategy.computeBestMove();
 	
 	return 0;
 }
-
-
 
 
