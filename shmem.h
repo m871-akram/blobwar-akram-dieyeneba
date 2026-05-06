@@ -10,7 +10,7 @@
 
 //! should be called first
 //! if init_move is true, the move will be set to 0,0,0,0
-void shmem_init(bool init_move=false);
+void shmem_init(bool init_move = false);
 
 //! return the last save move
 movement shmem_get();

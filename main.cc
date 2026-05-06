@@ -53,36 +53,42 @@
  * */
 
 /** this is the main game variable */
-blobwar *game;
+blobwar* game;
 
-int main(int argc, char **argv)
+int main(int argc, char** argv)
 {
-	if(argc == 2 ) {
-		if(strcmp(argv[1],"-h")==0) {
+	if (argc == 2)
+	{
+		if (strcmp(argv[1], "-h") == 0)
+		{
 			printf("usage: ./blobwar [-t <time>]\n");
 			printf("	-t <time> let IA compute during <time> (default: 1).\n");
 			exit(0);
 		}
 	}
-	
+
 	int compute_time_IA = 0;
-	if( argc == 3 ) {
-		if(strcmp(argv[1],"-t")==0) {
+	if (argc == 3)
+	{
+		if (strcmp(argv[1], "-t") == 0)
+		{
 			compute_time_IA = atoi(argv[2]);
-		} else {
+		}
+		else
+		{
 			printf("You don't know how to use this ? ./blobwar -h\n");
 			exit(1);
 		}
 	}
-	if(compute_time_IA <= 0)
+	if (compute_time_IA <= 0)
 		compute_time_IA = 1;
-	
-	
+
+
 	Uint32 new_ticks, diff;
 #ifdef DEBUG
 	cout << "Starting game" << endl;
 #endif
-	
+
 	//open video, sound, bugs buffer, ....
 	game = new blobwar();
 	game->compute_time_IA = compute_time_IA;
@@ -90,8 +96,9 @@ int main(int argc, char **argv)
 	//what time is it doc ?
 	game->ticks = SDL_GetTicks();
 
-	//now enter main game loop 
-	while (true) {
+	//now enter main game loop
+	while (true)
+	{
 		//handle the game (or try to)
 		game->handle();
 
@@ -102,26 +109,28 @@ int main(int argc, char **argv)
 		new_ticks = SDL_GetTicks();
 		diff = new_ticks - game->ticks;
 		//were we quick enough ??
-		if (diff < (1000/game->framerate)) {
+		if (diff < (1000 / game->framerate))
+		{
 			//yes, haha i've got an 3.4Ghz PC
 			//let's give the extra time back to linux
-			SDL_Delay((1000/game->framerate) - diff);
+			SDL_Delay((1000 / game->framerate) - diff);
 			game->frame++;
-			game->ticks = game->ticks + (1000/game->framerate);
+			game->ticks = game->ticks + (1000 / game->framerate);
 #ifdef ANIMATION
-			//if we have some animations, update display 
-			if ((game->frame % ANIMATIONSPEED)==0) game->display2update = true;
+			//if we have some animations, update display
+			if ((game->frame % ANIMATIONSPEED) == 0) game->display2update = true;
 #endif
-		} else {
+		}
+		else
+		{
 			//no, this bloated box would go faster on wheels
-			SDL_Delay((1000/game->framerate) - (diff % (1000/game->framerate)));
-			game->frame += 1 + (Uint32) (diff / (1000/game->framerate));
-			game->ticks = game->ticks + (1000/game->framerate) * (Uint32) ((diff / (1000/game->framerate)) + 1);
+			SDL_Delay((1000 / game->framerate) - (diff % (1000 / game->framerate)));
+			game->frame += 1 + (Uint32)(diff / (1000 / game->framerate));
+			game->ticks = game->ticks + (1000 / game->framerate) * (Uint32)((diff / (1000 / game->framerate)) + 1);
 		}
 
 		//update the screen
 		game->update();
-
 	}
 	return 0;
 }

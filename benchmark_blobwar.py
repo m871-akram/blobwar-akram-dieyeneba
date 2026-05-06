@@ -9,7 +9,6 @@ import subprocess
 import time
 from collections import defaultdict
 
-
 ALGOS = {
     "glouton": "./launchStrategy_glouton",
     "minimax": "./launchStrategy_minimax",

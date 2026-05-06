@@ -22,96 +22,97 @@ class Timer;
 #define CURRENT_PLAYER (turn_number % number_of_players)
 
 #include "move.h"
-    
+
 
 /**player class
  * all different type of players (human, ia, networked)*/
-class player {
-	private:
-		//!our id 
-		Uint16 player_id;
-		//!are we local human (0), local IA (1), network player (2)
-		Uint8 player_type;
-	public:
-		//!
-		player(Uint16 id, Uint8 type);
-		//!is this player human and playing locally ?
-		bool is_human();
-		//!is this player a local computer ?
-		bool is_computer();
-		~player();
+class player
+{
+private:
+    //!our id
+    Uint16 player_id;
+    //!are we local human (0), local IA (1), network player (2)
+    Uint8 player_type;
+
+public:
+    //!
+    player(Uint16 id, Uint8 type);
+    //!is this player human and playing locally ?
+    bool is_human();
+    //!is this player a local computer ?
+    bool is_computer();
+    ~player();
 };
 
 /**rules class
  * all game behaviour is controlled here
  * */
-class rules {
-	private:
-		//!type of game played (1P, 2P or network)
-		Uint16 gametype;
-		//!position of all blobs (-1 : no blob, else : player number)
-		bidiarray<Sint16> blobs;
-		//!all players we can ask to play
-		vector<player*> players;
+class rules
+{
+private:
+    //!type of game played (1P, 2P or network)
+    Uint16 gametype;
+    //!position of all blobs (-1 : no blob, else : player number)
+    bidiarray<Sint16> blobs;
+    //!all players we can ask to play
+    vector<player*> players;
 
-		//!correspondance between player numbers and colors
-		string *colors;
+    //!correspondance between player numbers and colors
+    string* colors;
 
 
-		//!go to next turn (also check if game is not finished)
-		void next_turn();
+    //!go to next turn (also check if game is not finished)
+    void next_turn();
 
-		//!end the game (someone won)
-		void end();
-		//
-		//!checks if chosen move is valid
-		bool valid_move();
+    //!end the game (someone won)
+    void end();
+    //
+    //!checks if chosen move is valid
+    bool valid_move();
 
-	public:
+public:
+    //!is the game finished ?
+    bool finished;
+    //!pointer on the board
+    bidiarray<bool> holes;
+    //!old x position
+    Uint8 ox;
+    //!old y position
+    Uint8 oy;
+    //!new x position
+    Uint8 nx;
+    //!new y position
+    Uint8 ny;
+    //!number of players should only be two for starting
+    Uint16 number_of_players;
+    //!current turn (number of turns elapsed since game beginning)
+    Uint32 turn_number;
 
-		//!is the game finished ?
-		bool finished;
-		//!pointer on the board
-		bidiarray<bool> holes;
-		//!old x position
-		Uint8 ox;
-		//!old y position
-		Uint8 oy;
-		//!new x position
-		Uint8 nx;
-		//!new y position
-		Uint8 ny;
-		//!number of players should only be two for starting
-		Uint16 number_of_players;
-		//!current turn (number of turns elapsed since game beginning)
-		Uint32 turn_number;
+    //! Store move durations for performance analysis
+    std::vector<double> move_durations[4];
 
-		//! Store move durations for performance analysis
-		std::vector<double> move_durations[4];
+    //!start a new game
+    rules(Uint16 type, board* b, Uint32 local_player_id);
+    ~rules();
+    //!ask the rules whether we have right to select a blob
+    bool authorize_selection(Uint8 x, Uint8 y);
+    //!tell the rules we do a move
+    bool set_move(Uint8 oldx, Uint8 oldy, Uint8 x, Uint8 y);
 
-		//!start a new game
-		rules(Uint16 type, board *b, Uint32 local_player_id);
-		~rules();
-		//!ask the rules whether we have right to select a blob
-		bool authorize_selection(Uint8 x, Uint8 y);
-		//!tell the rules we do a move
-		bool set_move(Uint8 oldx, Uint8 oldy, Uint8 x, Uint8 y);
+    //!compute the computer move (current player)
+    void compute_move();
 
-		//!compute the computer move (current player)
-		void compute_move();
+    //!play the move set by player or computed
+    void do_move();
 
-		//!play the move set by player or computed
-		void do_move();
+    //!update local interface to display current scores
+    void set_scores();
 
-		//!update local interface to display current scores
-		void set_scores();
-
-		//!print current board to console
-		void display_position();
-
+    //!print current board to console
+    void display_position();
 };
 
-		//!launcher for the computations
-		void* launch_computations(void* data);
+//!launcher for the computations
+void* launch_computations(void* data);
 
 #endif

@@ -1,15 +1,20 @@
 # Idées d'optimisation IA pour Blobwar
 
-Ce document propose des améliorations pour les IA du projet Blobwar, en reliant chaque idée aux notions du cours d'Algorithmique Avancée présentes dans `COURSE.md` : **travail/profondeur** $W,D$, **fork-join**, **for//**, **algorithmes en cascade**, **work-stealing**, **early termination**, **Monte-Carlo**, **Las Vegas**, **dérandomisation** et **analyse probabiliste**.
+Ce document propose des améliorations pour les IA du projet Blobwar, en reliant chaque idée aux notions du cours
+d'Algorithmique Avancée présentes dans `COURSE.md` : **travail/profondeur** $W,D$, **fork-join**, **for//**, *
+*algorithmes en cascade**, **work-stealing**, **early termination**, **Monte-Carlo**, **Las Vegas**, **dérandomisation**
+et **analyse probabiliste**.
 
-Le code actuel calcule les coups dans `Strategy::computeBestMove()` avec un état `bidiarray<Sint16> _blobs`, un masque de trous `_holes`, et un joueur courant `_current_player`. Le moteur de règles applique les règles suivantes :
+Le code actuel calcule les coups dans `Strategy::computeBestMove()` avec un état `bidiarray<Sint16> _blobs`, un masque
+de trous `_holes`, et un joueur courant `_current_player`. Le moteur de règles applique les règles suivantes :
 
 - déplacement en distance de Chebyshev $1$ : duplication ;
 - déplacement en distance de Chebyshev $2$ : saut, donc suppression de l'ancien pion ;
 - après arrivée, conversion des pions adverses adjacents à distance $1$ ;
 - plateau $8 \times 8$, donc au plus $64$ cases.
 
-Cette petite taille rend possible des optimisations très efficaces : **bitboards 64 bits**, tables de voisinage pré-calculées, tables de transposition, recherche exacte en fin de partie et parallélisation contrôlée.
+Cette petite taille rend possible des optimisations très efficaces : **bitboards 64 bits**, tables de voisinage
+pré-calculées, tables de transposition, recherche exacte en fin de partie et parallélisation contrôlée.
 
 ---
 
@@ -23,20 +28,24 @@ $$
 score = \#pions_{moi} - \#pions_{adversaire}
 $$
 
-Cette métrique est correcte en fin de partie, mais trop pauvre au début et au milieu. Dans Blobwar, gagner un pion maintenant peut être mauvais si cela donne à l'adversaire une zone de conversion massive au coup suivant.
+Cette métrique est correcte en fin de partie, mais trop pauvre au début et au milieu. Dans Blobwar, gagner un pion
+maintenant peut être mauvais si cela donne à l'adversaire une zone de conversion massive au coup suivant.
 
 Une évaluation plus robuste :
 
 $$
 Eval(s) =
 w_m(\phi) \cdot Material
+
 + w_{mob}(\phi) \cdot Mobility
 + w_c(\phi) \cdot Center
 + w_t(\phi) \cdot Territory
 + w_s(\phi) \cdot Stability
+
 - w_v(\phi) \cdot Vulnerability
+
 + w_g(\phi) \cdot ImmediateGain
-$$
+  $$
 
 où $\phi$ est la phase :
 
@@ -48,7 +57,8 @@ $$
 - milieu : favoriser mobilité, sécurité, potentiel de conversion ;
 - fin : favoriser matériel exact et coups qui réduisent les réponses adverses.
 
-Lien avec le cours : c'est une forme d'**approximation contrôlée**. On ne peut pas explorer tout l'arbre à grande profondeur, donc on approxime la valeur réelle d'un état par une combinaison de critères calculables en temps faible.
+Lien avec le cours : c'est une forme d'**approximation contrôlée**. On ne peut pas explorer tout l'arbre à grande
+profondeur, donc on approxime la valeur réelle d'un état par une combinaison de critères calculables en temps faible.
 
 Implémentation C++ :
 
@@ -81,7 +91,8 @@ Sint32 evaluate(const Position& p, int me) {
 }
 ```
 
-Même sans introduire une nouvelle classe `Position` tout de suite, ces métriques peuvent être calculées depuis `_blobs` et `_holes`. Mais pour les performances, les bitboards sont fortement recommandés.
+Même sans introduire une nouvelle classe `Position` tout de suite, ces métriques peuvent être calculées depuis `_blobs`
+et `_holes`. Mais pour les performances, les bitboards sont fortement recommandés.
 
 ---
 
@@ -91,7 +102,8 @@ Dans Blobwar, un coup a une valeur matérielle immédiate :
 
 - duplication : $+1$ pion ;
 - saut : $0$ pion net avant conversion ;
-- conversion de $k$ pions adverses : chaque pion converti vaut $+2$ dans la différence de score, car l'adversaire perd $1$ et moi je gagne $1$.
+- conversion de $k$ pions adverses : chaque pion converti vaut $+2$ dans la différence de score, car l'adversaire
+  perd $1$ et moi je gagne $1$.
 
 Donc le gain immédiat d'un coup est approximativement :
 
@@ -177,13 +189,15 @@ Version plus fine :
 - `copyMobility` : nombre de duplications ;
 - `jumpMobility` : nombre de sauts.
 
-Les duplications sont généralement plus sûres, car elles augmentent le matériel. Les sauts sont utiles pour atteindre une zone forte ou échapper à une menace.
+Les duplications sont généralement plus sûres, car elles augmentent le matériel. Les sauts sont utiles pour atteindre
+une zone forte ou échapper à une menace.
 
 ---
 
 ### 1.4. Vulnérabilité : pions convertibles au prochain coup adverse
 
-Un pion à moi situé en case $p$ est vulnérable si l'adversaire peut jouer sur une case vide $q$ adjacente à $p$. Après son arrivée en $q$, il convertira $p$.
+Un pion à moi situé en case $p$ est vulnérable si l'adversaire peut jouer sur une case vide $q$ adjacente à $p$. Après
+son arrivée en $q$, il convertira $p$.
 
 Critère :
 
@@ -220,13 +234,14 @@ Sans bitboard, on peut scanner les $64$ cases : le plateau est petit, donc $O(64
 
 ### 1.5. Stabilité : pions difficiles à convertir
 
-Un pion stable est un pion qui ne peut pas être converti immédiatement, souvent parce que les cases voisines sont occupées, des trous, ou hors plateau.
+Un pion stable est un pion qui ne peut pas être converti immédiatement, souvent parce que les cases voisines sont
+occupées, des trous, ou hors plateau.
 
 Approximation :
 
 $$
 Stability = \#\{pions\_moi\ non\ vulnérables\}
-          - \#\{pions\_adv\ non\ vulnérables\}
+- \#\{pions\_adv\ non\ vulnérables\}
 $$
 
 Version plus positionnelle :
@@ -250,15 +265,17 @@ Mais il vaut mieux calculer la stabilité dynamiquement, car les trous dépenden
 
 ### 1.6. Contrôle du centre et poids positionnels dépendants de la map
 
-Dans beaucoup de jeux de plateau, le centre donne plus d'options. Pour Blobwar, le centre est surtout utile en début de partie car il maximise les destinations à distance $1$ ou $2$.
+Dans beaucoup de jeux de plateau, le centre donne plus d'options. Pour Blobwar, le centre est surtout utile en début de
+partie car il maximise les destinations à distance $1$ ou $2$.
 
 Poids simple :
 
 $$
 CenterScore =
 \sum_{p \in moi} centerWeight[p]
+
 - \sum_{p \in adv} centerWeight[p]
-$$
+  $$
 
 où :
 
@@ -288,7 +305,8 @@ for (int i = 0; i < 64; ++i) {
 }
 ```
 
-Lien avec le cours : c'est une forme de **pré-calcul** pour réduire le travail $W$ de chaque évaluation. On paie une fois au début, puis chaque feuille de l'arbre coûte moins cher.
+Lien avec le cours : c'est une forme de **pré-calcul** pour réduire le travail $W$ de chaque évaluation. On paie une
+fois au début, puis chaque feuille de l'arbre coûte moins cher.
 
 ---
 
@@ -307,8 +325,9 @@ puis :
 $$
 Territory =
 \#\{c : d_{moi}(c) < d_{adv}(c)\}
+
 - \#\{c : d_{adv}(c) < d_{moi}(c)\}
-$$
+  $$
 
 Pour Blobwar, une arête du graphe relie deux cases non-trous si leur distance de Chebyshev est $\le 2$.
 
@@ -369,7 +388,8 @@ Pertinence :
 - Blobwar a des renversements locaux forts ;
 - préparer une case de conversion à $4$ ou $5$ pions peut être plus fort qu'un gain immédiat de $1$.
 
-Lien avec le cours : c'est une **recherche limitée** ou une approximation d'un sous-arbre. On réduit le travail par un calcul local au lieu d'explorer complètement.
+Lien avec le cours : c'est une **recherche limitée** ou une approximation d'un sous-arbre. On réduit le travail par un
+calcul local au lieu d'explorer complètement.
 
 ---
 
@@ -497,13 +517,15 @@ int moveOrderingScore(const Position& p, Move mv, int me, int ply) {
 }
 ```
 
-Lien avec le cours : on agit directement sur la taille effective de l'arbre de calcul. On ne change pas la correction d'alpha-beta, mais on réduit le **travail** $W$.
+Lien avec le cours : on agit directement sur la taille effective de l'arbre de calcul. On ne change pas la correction
+d'alpha-beta, mais on réduit le **travail** $W$.
 
 ---
 
 ### 2.2. Iterative Deepening : profondeur progressive et sauvegarde du meilleur coup
 
-Le code `launchStrategy` est tué par un timer externe après `compute_time_IA` secondes. Donc l'IA doit toujours avoir sauvegardé un coup valide avant la limite.
+Le code `launchStrategy` est tué par un timer externe après `compute_time_IA` secondes. Donc l'IA doit toujours avoir
+sauvegardé un coup valide avant la limite.
 
 Principe :
 
@@ -551,7 +573,8 @@ void Strategy::computeBestMove() {
 
 ### 2.3. Tables de transposition avec Zobrist Hashing
 
-Un même état peut être atteint par plusieurs ordres de coups. Sans table de transposition, on recalcule le même sous-arbre.
+Un même état peut être atteint par plusieurs ordres de coups. Sans table de transposition, on recalcule le même
+sous-arbre.
 
 On associe à chaque état un hash :
 
@@ -605,13 +628,16 @@ Lien avec le cours :
 
 - idée proche du **hachage probabiliste** ;
 - avec un hash 64 bits, les collisions sont extrêmement rares ;
-- pour une version **Las Vegas**, on stocke aussi une signature complète ou les bitboards, et on vérifie l'état avant d'utiliser l'entrée. Comme Rabin-Karp Monte-Carlo devient Las Vegas par vérification, Zobrist devient sans erreur si on vérifie les candidats.
+- pour une version **Las Vegas**, on stocke aussi une signature complète ou les bitboards, et on vérifie l'état avant d'
+  utiliser l'entrée. Comme Rabin-Karp Monte-Carlo devient Las Vegas par vérification, Zobrist devient sans erreur si on
+  vérifie les candidats.
 
 ---
 
 ### 2.4. Aspiration Windows
 
-Avec iterative deepening, le score à profondeur $d$ est souvent proche du score à profondeur $d-1$. Au lieu de chercher dans :
+Avec iterative deepening, le score à profondeur $d$ est souvent proche du score à profondeur $d-1$. Au lieu de chercher
+dans :
 
 $$
 [-\infty, +\infty]
@@ -634,7 +660,8 @@ Pertinence :
 
 ### 2.5. Principal Variation Search / NegaScout
 
-Après avoir trié les coups, on suppose que le premier est le meilleur. On le cherche avec une fenêtre normale. Les suivants sont testés avec une fenêtre nulle :
+Après avoir trié les coups, on suppose que le premier est le meilleur. On le cherche avec une fenêtre normale. Les
+suivants sont testés avec une fenêtre nulle :
 
 $$
 [\alpha, \alpha + 1]
@@ -656,13 +683,15 @@ for each other child:
     alpha = max(alpha, score);
 ```
 
-Lien avec le cours : on exploite une dépendance de données au lieu de la nier. Le premier fils crée une borne forte ; les autres deviennent beaucoup moins coûteux.
+Lien avec le cours : on exploite une dépendance de données au lieu de la nier. Le premier fils crée une borne forte ;
+les autres deviennent beaucoup moins coûteux.
 
 ---
 
 ### 2.6. Quiescence Search adaptée à Blobwar
 
-Un arrêt brutal à profondeur $d$ peut évaluer une position instable juste avant une grosse conversion adverse. C'est l'effet horizon.
+Un arrêt brutal à profondeur $d$ peut évaluer une position instable juste avant une grosse conversion adverse. C'est l'
+effet horizon.
 
 Idée :
 
@@ -899,7 +928,8 @@ pour chaque fils:
     si alpha >= beta: break
 ```
 
-Le `break` montre une dépendance séquentielle. Le cours insiste sur ce piège : une boucle `for//` naïve ne peut pas contenir un arrêt séquentiel sans surtravail.
+Le `break` montre une dépendance séquentielle. Le cours insiste sur ce piège : une boucle `for//` naïve ne peut pas
+contenir un arrêt séquentiel sans surtravail.
 
 Il faut donc paralléliser de façon **spéculative mais contrôlée**.
 
@@ -1117,7 +1147,8 @@ Lien avec le cours : c'est l'adaptation directe de l'**early termination** à un
 
 ### 3.12. Évaluation parallèle des feuilles par map-reduce
 
-Dans certaines configurations, l'heuristique devient plus chère : territoire BFS, vulnérabilité, stabilité, MCTS local. On peut paralléliser l'évaluation des coups root :
+Dans certaines configurations, l'heuristique devient plus chère : territoire BFS, vulnérabilité, stabilité, MCTS local.
+On peut paralléliser l'évaluation des coups root :
 
 ```text
 features[mv] = for// mv:
@@ -1155,8 +1186,9 @@ Formule UCT :
 $$
 UCT(i) =
 \bar{X_i}
+
 + C \sqrt{\frac{\ln N}{n_i}}
-$$
+  $$
 
 où :
 
@@ -1185,7 +1217,8 @@ retourner score final ou heuristique
 Type probabiliste :
 
 - si MCTS remplace la recherche exacte : algorithme Monte-Carlo, résultat approximatif ;
-- si MCTS sert seulement au move ordering d'un alpha-beta complet : pas d'erreur de correction, seulement un choix d'ordre probabiliste.
+- si MCTS sert seulement au move ordering d'un alpha-beta complet : pas d'erreur de correction, seulement un choix
+  d'ordre probabiliste.
 
 Parallélisation :
 
@@ -1202,8 +1235,9 @@ Au lieu d'évaluer une feuille uniquement par heuristique, on peut faire $K$ rol
 $$
 Eval_{hybride}(s) =
 \lambda \cdot Eval_{heuristique}(s)
+
 + (1-\lambda) \cdot \frac{1}{K}\sum_{i=1}^{K} Rollout_i(s)
-$$
+  $$
 
 Pertinence :
 
@@ -1303,7 +1337,8 @@ Lien avec le cours :
 
 ### 4.5. Randomisation contrôlée du move ordering
 
-Un ordre déterministe peut tomber dans des pires cas. Ajouter un bruit faible dans les égalités permet d'explorer des variations différentes.
+Un ordre déterministe peut tomber dans des pires cas. Ajouter un bruit faible dans les égalités permet d'explorer des
+variations différentes.
 
 ```cpp
 score += randomTieBreaker(seed, mv) % 8;
@@ -1324,7 +1359,8 @@ Lien avec le cours :
 
 ### 4.6. Dérandomisation des rollouts
 
-Si une idée probabiliste marche bien, on peut la rendre déterministe par une méthode inspirée des **espérances conditionnelles**.
+Si une idée probabiliste marche bien, on peut la rendre déterministe par une méthode inspirée des **espérances
+conditionnelles**.
 
 Exemple :
 
@@ -1340,7 +1376,8 @@ pour chaque coup candidat:
 choisir le max
 ```
 
-Cela transforme une politique de rollout aléatoire en politique déterministe stable, tout en gardant l'idée qui l'a produite.
+Cela transforme une politique de rollout aléatoire en politique déterministe stable, tout en gardant l'idée qui l'a
+produite.
 
 ---
 
@@ -1437,18 +1474,18 @@ Remplacer `std::async` massif par :
 
 Comparer au moins :
 
-| IA | Description |
-|---|---|
-| `GreedyMaterial` | gain immédiat seulement |
-| `GreedyHeuristic` | évaluation multi-critères après un coup |
-| `MinMax` | profondeur fixe |
-| `AlphaBeta` | alpha-beta simple |
-| `AlphaBeta+Ordering` | tri des coups |
-| `AlphaBeta+TT+ID` | table + iterative deepening |
-| `ParallelRoot` | root parallel |
-| `YBWC/Jamboree` | alpha-beta parallèle contrôlé |
-| `MCTS` | approche probabiliste |
-| `Hybrid AB+MCTS` | rollouts aux feuilles ou move ordering MCTS |
+| IA                   | Description                                 |
+|----------------------|---------------------------------------------|
+| `GreedyMaterial`     | gain immédiat seulement                     |
+| `GreedyHeuristic`    | évaluation multi-critères après un coup     |
+| `MinMax`             | profondeur fixe                             |
+| `AlphaBeta`          | alpha-beta simple                           |
+| `AlphaBeta+Ordering` | tri des coups                               |
+| `AlphaBeta+TT+ID`    | table + iterative deepening                 |
+| `ParallelRoot`       | root parallel                               |
+| `YBWC/Jamboree`      | alpha-beta parallèle contrôlé               |
+| `MCTS`               | approche probabiliste                       |
+| `Hybrid AB+MCTS`     | rollouts aux feuilles ou move ordering MCTS |
 
 Mesures à logger :
 
@@ -1471,12 +1508,14 @@ $$
 
 ## Idées les plus originales à valoriser dans le rapport
 
-1. **Jamboree Search en cascade** : chercher $\sqrt{b}$ coups séquentiellement puis paralléliser le reste. Lien très fort avec la séance sur les algorithmes en cascade.
+1. **Jamboree Search en cascade** : chercher $\sqrt{b}$ coups séquentiellement puis paralléliser le reste. Lien très
+   fort avec la séance sur les algorithmes en cascade.
 2. **YBWC + early termination** : paralléliser alpha-beta malgré sa dépendance de données.
 3. **Bitboard + Zobrist Las Vegas** : hash probabiliste mais vérifié.
 4. **Échantillonnage en cascade pour le move ordering** : inspiré du maximum probabiliste.
 5. **MCTS hybride** : utiliser Monte-Carlo comme estimateur ou comme pré-tri, puis alpha-beta exact.
-6. **Work-stealing par sous-arbres** : montrer que les sous-arbres alpha-beta sont déséquilibrés et que le vol de travail est plus pertinent qu'un découpage statique.
+6. **Work-stealing par sous-arbres** : montrer que les sous-arbres alpha-beta sont déséquilibrés et que le vol de
+   travail est plus pertinent qu'un découpage statique.
 7. **Heuristique phase-dependent** : matériel en fin de partie, mobilité/territoire/stabilité avant.
 
 ---
@@ -1492,4 +1531,6 @@ Le meilleur chemin technique est :
 5. paralléliser avec root parallel puis YBWC/Jamboree ;
 6. ajouter une branche probabiliste MCTS ou ProbCut pour l'originalité expérimentale.
 
-Cette progression permet d'obtenir rapidement une IA plus forte, tout en construisant un rapport solide relié aux concepts du cours : $W,D$, loi de Brent, fork-join, cascade, work-stealing, early termination, Monte-Carlo, Las Vegas et dérandomisation.
+Cette progression permet d'obtenir rapidement une IA plus forte, tout en construisant un rapport solide relié aux
+concepts du cours : $W,D$, loi de Brent, fork-join, cascade, work-stealing, early termination, Monte-Carlo, Las Vegas et
+dérandomisation.
