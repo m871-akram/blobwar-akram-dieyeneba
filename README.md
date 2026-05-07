@@ -12,13 +12,6 @@ Alpha-Beta parallele intermediaire et Alpha-Beta parallele optimise.
 - `strategy.cc` : version finale avec heuristique avancee, tri des coups, approfondissement iteratif et parallelisation
   OpenMP.
 
-Le lanceur commun est `launchStrategy.cc`. Chaque strategie est compilee dans un binaire separe :
-
-- `launchStrategy_glouton`
-- `launchStrategy_minimax`
-- `launchStrategy_alphabeta0`
-- `launchStrategy`
-
 ## Compilation
 
 Depuis la racine du projet :
@@ -39,6 +32,12 @@ Pour nettoyer les binaires et fichiers objets :
 make clean
 ```
 
+Pour lancer le jeu : 
+
+```bash
+./blobwar
+```
+
 ## Lancer le benchmark
 
 Le script `benchmark_blobwar.py` fait jouer les strategies entre elles et produit les CSV plus les graphes.
@@ -47,15 +46,13 @@ Le script `benchmark_blobwar.py` fait jouer les strategies entre elles et produi
 python3 benchmark_blobwar.py --timeout 2 --games-per-pair 1
 ```
 
+- Le timeout du benchmark est fixe a 2 secondes par coup.
+- La version finale `strategy.cc` utilise l'approfondissement iteratif et tourne donc jusqu'au timeout.
+- Les parties avec `alphabeta_final` peuvent prendre plusieurs minutes, car il utilise presque tout le temps disponible
+  a chaque coup.
+
 ## Rapport
 
 Le rapport est dans :
 
 - `rapport_blobwar.pdf`
-
-## Remarques
-
-- Le timeout du benchmark est fixe a 2 secondes par coup.
-- La version finale `strategy.cc` utilise l'approfondissement iteratif et tourne donc jusqu'au timeout.
-- Les parties avec `alphabeta_final` peuvent prendre plusieurs minutes, car il utilise presque tout le temps disponible
-  a chaque coup.
